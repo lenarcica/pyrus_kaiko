@@ -9,14 +9,20 @@ except :
   import pyrus_kaiko;
   pk = pyrus_kaiko;
 
-if "asjoin_py" in pyrus_kaiko :
-  asjoin_py = pyrus_kaiko.asjoin_py;
-else :
-  try :
-    import pyrus_marketbook;
-    asjoin_py = pyrus_marketbook.asjoin_py;
-  except :
-    print("pyrus_kaiko..__init__.py could not receive asjoin.py");
+try :
+  if "asjoin_py" in pyrus_kaiko :
+    asjoin_py = pyrus_kaiko.asjoin_py;
+  else :
+    try :
+      import pyrus_marketbook;
+      asjoin_py = pyrus_marketbook.asjoin_py;
+    except :
+      print("pyrus_kaiko..__init__.py could not receive asjoin.py");
+except :
+  if "asjoin_py" in dir(pyrus_kaiko) :
+    print('"asjoin_py" is part of "dir(pyrus_kaiko)"');
+  else :
+    print(' Hmm, Module is still potentially confused in location.');
 
 # VL = Verbosity Level
 import typing
@@ -35,7 +41,10 @@ if __name__ == "__main__" :
   print("------------------------------------------------------------------------------------");
   import pandas as pd; import pyarrow as pa; import numpy as np;
   print("initiate pyrus_kaiko inside main");
-  import pyrus_kaiko;  
+  try :
+    import pyrus_kaiko;
+  except :
+    print(" Something didn't install trying to import pyrus kaiko?  Are we broken?");  
   try :
     from pyrus_kaiko import pk;
   except :

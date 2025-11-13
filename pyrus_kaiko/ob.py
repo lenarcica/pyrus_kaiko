@@ -1,9 +1,50 @@
+#########################################################################
+## ob.py
+##
+## Basic orderbook simulation, useful for Kaiko simulations
+
+import numpy as np; import pandas as pd;
+import typing
+from typing import TypeAlias;
+
+TimeStampExample = np.asarray([pd.to_datetime('2025-01-01 12:00:00')]).astype('datetime64[ns]')[0];
+npTimeStamp = type(TimeStampExample)
+npTimeStampArray = type(np.array([TimeStampExample]));
+VerbosityLevel: TypeAlias = int;
+
 Default_Fake_OB = """
 nMidPoints=5000;nGen=4000;nVen=20;verbose = 1;
 stTime = '2024-10-03 10:30:32'; deltaSec= 1.53; startMid = 100;
 dTas = 4; sd_Midpoint=4; spread_Orders=50; AddMidPrice=True; v_bhit = False; fast_check="FASTCHECK";
 from pyrus_marketbook import pyrus_marketbook; 
 """
+
+def TimeGeneration(stTime: str, nMidPoints: int | np.int64,  \
+    deltaSec: float | np.float64) -> (npTimeStamp, npTimeStamp, npTimeStampArray):
+  vTmin = pd.to_datetime(stTime, format="%Y-%m-%d %H:%M:%S").to_numpy().astype('datetime64[ns]'); 
+  vTmax = vTmin + (nMidPoints * deltaSec * np.int64(1000000000)).astype('timedelta64[ns]');
+  ## Lets cover vTmin, vTmax with additional 25% edges on each side.
+  vTime = vTmin + ((np.arange(np.int64(np.floor(nMidPoints*1.5))) - \
+     .25*nMidPoints) * deltaSec * np.int64(1000000000)).astype('timedelta64[ns]')
+  return(vTmin, vTmax, vTime); 
+
+def BasicSimulateMidPrice(nMidPoints: int | np.int64, sd_Midpoint: float | np.float64, startMid: float | np.float64) :
+  """
+  Simulates prices (truncated to nearest unit) from a simple Brownian process to reflect a typical stock movement pattern.
+
+  This does not pretend to be a highly tecnhical way to simulate midpoint motion, we are trying to efficiently create "orderbook-like"
+   data process to test algorithms.  With a set midpoint, additional data will be simulated around the the midpoint and truncated to
+   make a pattern that can be treated like a consistent book.
+
+  For more advanced processes, we might simulate orders from some hidden information process affecting various agents with variable 
+   informational accuracy.
+  """
+  MidPrice = np.cumsum(np.round(np.random.normal(0,sd_Midpoint*50/np.sqrt(nMidPoints*1.5), size=int(np.floor(nMidPoints*1.5))),decimals=0));
+  MidPrice = MidPrice - MidPrice[int(np.floor(.25*nMidPoints))] + startMid * 100; 
+  return(MidPrice); 
+  if AddMidPrice == True :
+    MidTable = pd.DataFrame({'time':vTime, 'nbm':MidPrice});
+
 def Fake_OB(nGen:int, nMidPoints:int=5000,nVen:int=10,verbose:VerbosityLevel = 0, 
   stTime:str='2024-10-03 10:30:32', deltaSec:np.float64=1.53, 
   startMid:np.float64=100, sd_Midpoint:np.float64=4, spread_Orders:np.float64=50, v_bhit:bool = False, 
@@ -37,8 +78,8 @@ def Fake_OB(nGen:int, nMidPoints:int=5000,nVen:int=10,verbose:VerbosityLevel = 0
   v_t0 = np.sort(np.random.uniform(np.min(vTime).astype(np.int64), np.max(vTime).astype(np.int64), nMake)).astype('datetime64[ns]');
   """
   import pandas as pd; import numpy as np; import copy;
-  from pyrus_marketbook.ob import BasicSimulateMidPrice, TimeGeneration;
-  from pyrus_marketbook.ob import asjoin_py, unsorted_asjoin_py;
+  from pyrus_kaiko.ob import BasicSimulateMidPrice, TimeGeneration;
+  from pyrus_kaiko.ob import asjoin_py, unsorted_asjoin_py;
   #from pyrus_marketbook.ob import * asjoin_py
   StT = "Fake_OB(Vb=" + str(verbose) + ",nG=" + str(nGen) + "): ";
   if verbose >= 1 :
@@ -91,7 +132,6 @@ def Fake_OB(nGen:int, nMidPoints:int=5000,nVen:int=10,verbose:VerbosityLevel = 0
   PFAST_CHECK_ANSWERS =  ["PARALLELFASTCHECK","PARRALEL","PARALLEL","PARALLELFASTCHECK", "PARRALLEL", "PARRALEL"];
   SLOW_CHECKANSWERS = ["SLOWCHECK", "slow_price_verify", "SLOW_PRICE_VERIFY"];
   SLOWEST_LIMIT_HIT_ANSWERS = ["LIMIT_HIT", "limithit", "limit_hit", "lhit", "LHIT", "limhit", "Slowest", "SLOWEST"];
-  if fast_check in FASTCHECK_ANSWERS+PFAST_CHECK_ANSWERS+SLOW_CHECKANSWERS : 
   if fast_check in FASTCHECK_ANSWERS+PFAST_CHECK_ANSWERS+SLOW_CHECKANSWERS : 
     import pyarrow as pa; pdiff = 0;
     tabOrd = pd.DataFrame({'bs':np.asarray(['b' if x == 1 else 's' for x in v_s], dtype="S1"), "price":v_p, "qty": np.zeros(len(v_p)) + 2,
@@ -171,3 +211,61 @@ def Fake_OB(nGen:int, nMidPoints:int=5000,nVen:int=10,verbose:VerbosityLevel = 0
   if AddMidPrice == True :
     return(order_DB, MidTable);
   return(order_DB);
+
+## result of "a_Fake_ob" for use in testing default settings for an orderbook algorithm
+def fake_for_algo(nMidPoints=2000,nGen=1000,nVen=20,verbose = 1,
+  stTime = '2024-10-03 10:30:32', deltaSec= 1.53, startMid = 100,
+  dTas = 4, AddMidPrice=False, OnlyHit=False, v_bhit = False, fast_check:str = "FASTCHECK") :
+  from pyrus_marketbook import pyrus_marketbook;
+  import numpy as np; import pandas as pd;
+  from pyrus_marketbook import ob;
+  #
+  if AddMidPrice == True :
+    a_Fake_OB, MidTable = ob.Fake_OB(nGen=nGen, nVen=nVen,verbose = 1, 
+    stTime=stTime, deltaSec=deltaSec, nMidPoints=nMidPoints, startMid=100, sd_Midpoint=4, spread_Orders=50, AddMidPrice=True, v_bhit=v_bhit,fast_check=fast_check)
+  else :
+    a_Fake_OB = ob.Fake_OB(nGen=nGen, nVen=nVen,verbose = 1, 
+      stTime=stTime, deltaSec=deltaSec, nMidPoints=nMidPoints, startMid=100, sd_Midpoint=4, spread_Orders=50, AddMidPrice=False, v_bhit=v_bhit,fast_check=fast_check)
+  #
+  import pyarrow as pa;
+  new_mr = a_Fake_OB.mr.copy().to_numpy();
+  new_mr[ a_Fake_OB.mr > 5 ] = 1;
+  new_mr[ a_Fake_OB.mr <= 5 ] = 0;
+  a_Fake_OB['mr'] = new_mr;
+  a_Fake_OB['bs'] = a_Fake_OB['bs'].astype('|S1')
+  a_Fake_OB['mr'] = a_Fake_OB['mr'].astype(np.int64);
+  a_Fake_OB['t0'] = a_Fake_OB['t0'].astype(np.int64);
+  a_Fake_OB['t1'] = a_Fake_OB['t1'].astype(np.int64);
+  if OnlyHit == True :
+    tab_a = pa.Table.from_pandas(a_Fake_OB[a_Fake_OB['hit'] == 0])
+  else :
+    tab_a = pa.Table.from_pandas(a_Fake_OB)
+  out_t = pa.Table.from_batches([pyrus_marketbook.cumulate(tab_a,0)]).to_pandas();
+  #
+  nr = len(np.unique(out_t.related_id));
+  v_d = np.asarray([1,2,5, 20]).astype(np.int64);
+  v_fd = np.zeros(0, dtype=np.float64);
+  bprices = np.unique(out_t.price[(out_t.side == b'b')|(out_t.side=='b')]);
+  sprices = np.unique(out_t.price[(out_t.side == b's')|(out_t.side=='s')]);
+  kalgoint = np.array([0],dtype=np.uint8)[0];
+  write_sum_q = np.array([1], dtype=np.uint8)[0]; write_sum_pq = np.array([1], dtype=np.uint8)[0];
+  write_avp = np.array([1], dtype=np.uint8)[0]; write_worstpi = np.array([0], dtype=np.uint8)[0];
+  write_nlevels = np.array([0],dtype=np.uint8)[0]; write_atq = np.array([0], dtype=np.uint8)[0];
+  v_w = np.asarray([-1], np.float64);  verbose = 6;
+
+  vTmin = np.asarray([pd.to_datetime(stTime)]).astype('datetime64[ns]')[0];
+
+  vTmax = vTmin + (nMidPoints * deltaSec * np.int64(1000000000)).astype('timedelta64[ns]');
+  time_minmax = np.asarray([vTmin, vTmax]);
+  if AddMidPrice == True :
+    return(out_t, nr, v_d, 
+      bprices, sprices,
+      write_sum_q, write_sum_pq, write_avp, write_worstpi, write_nlevels, write_atq,
+      v_w, verbose, time_minmax, a_Fake_OB, MidTable);
+  else :
+    return(out_t, nr, v_d, 
+      bprices, sprices,
+      write_sum_q, write_sum_pq, write_avp, write_worstpi, write_nlevels, write_atq,
+      v_w, verbose, time_minmax);
+
+
