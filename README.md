@@ -93,8 +93,9 @@ compiled code does not interfere with normal cloud syncronization.
  - ```ob.py``` : Faking orderbooks
 
 ## src: Directory with Rust language source code
-### a. ```lib.rs```: Primary ```pyo3``` interface between Rust and python code, demonstrating Arrow Parquet and other interaction formats between Rust/Python
-### External Facing functions:
+### a. ```lib.rs```: 
+  Primary ```pyo3``` interface between Rust and python code, demonstrating Arrow Parquet and other interaction formats between Rust/Python
+### External Facing functions in ```lib.rs```:
  - ```kaiko_fob[]```: main function called to extract a GZ zipped FOB file and return ARROW format table to python for further processing.
 
  - ```kaiko_make_u_fob[]```: Take simulated orderbook data and create a fake GZ zipped FOB file
@@ -107,6 +108,9 @@ compiled code does not interfere with normal cloud syncronization.
 
  - ```sip_arrow[]```: SIP NBBO from separate BBO streat demonstration
 
-### b. ```sip_algo.rs/sip_struct.rs```: Demonstration of a basic NBBO calculation on SIP format NBBO data (such as Kaiko TOB files that would need to be integrated)
-### c. ```b2v_struct.rs```:  Bit-based structures for keeping tabs on each Exchange's ability to keep at top of book (see sip_algo.rs material)
-### c. ```verify_price.rs algo```: Main algorithm for "clipping" simulated orders against the simulated midprice to create a large set of simulated oIrderbook data
+### b. ```sip_algo.rs/sip_struct.rs```: 
+  Demonstration of a basic NBBO calculation on SIP format NBBO data (such as Kaiko TOB files that would need to be integrated)
+### c. ```b2v_struct.rs```:  
+  Bit-based structures for keeping tabs on each Exchange's ability to keep at top of book (see sip_algo.rs material)
+### c. ```verify_price.rs algo```: 
+ Main algorithm for "clipping" simulated orders against the simulated midprice to create a large set of simulated oIrderbook data
