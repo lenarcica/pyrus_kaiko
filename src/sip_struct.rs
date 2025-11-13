@@ -213,6 +213,7 @@ impl PSip {
   }
   pub fn update(&mut self, newv: TNV, newp: TP, newq: TQ) -> u8 {
      let newvi: usize = newv as usize;
+     let newp = if newq > 0 as TQ { newp } else { 0.0 };
      if self.p == newp && self.p <= 0.0 {
      } else if (self.p == 0.0) && (newp > 0.0) {
        self.b2v.zero_all(); self.nwv = 1;
@@ -426,6 +427,8 @@ impl PublishSip {
   }
 }
 
+/****
+ Old Numpy based export.  Does not appear to still run in updated Arrow code
 // For SIP, so long as we can figure out way to publish activity
 unsafe impl Element for PublishSip {
   const IS_COPY: bool = false;  
@@ -454,6 +457,7 @@ unsafe impl Element for PublishSip {
       return slc.to_vec();
     }
 }  
+****/
 impl RecSip {
   // nv is number of venues in this case
   pub fn new(n_r:u32, nv: TNV) -> RecSip {

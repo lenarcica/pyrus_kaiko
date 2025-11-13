@@ -861,6 +861,8 @@ fn test_pa_py<'py>(_py:Python<'py>, intable: arrowPyTable) {
    Ok(arrowPyArray::new(Arc::new(uint64_array), Arc::new(uint64_field)).to_arro3(py)?.into())
  }
 
+/*****************************
+ // Note we need to copy in a few more functions to get this one to work.
   ///~///////////////////////////////////////////////////////////
   /// sip_arrow[] Rust function
   ///
@@ -958,6 +960,6 @@ fn test_pa_py<'py>(_py:Python<'py>, intable: arrowPyTable) {
     }
     return recordbatch_to_pyarrow(&batch, py);
   }
-
+***********************/
   Ok(())
 }
