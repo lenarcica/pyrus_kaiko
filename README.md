@@ -25,27 +25,31 @@ For use in commercial products, others are recommended to rewrite for your own p
 #  KAIKO "fob" files (Full-Order-Book)
 exist in a strange format
 
-|time  | type ["U"PDATE/"S"NAP]  | Buys Orders     | Sells Orders 
-| 0:00 | U                       | [[10.0,1000]]   | [11.0, 2000]
-| 0:01 | S                       | [[9.0,,400]...] | [[10.0,1000], ....]
-| 0:03 | U                       | [[10.1,900]]    | [[10.1,0],[10.2,140]]
+|time  | type ["U"PDATE/"S"NAP]  | Buys Orders     | Sells Orders           |
+| ---- | ----------------------- | --------------- | ---------------------- |
+| 0:00 | U                       | [[10.0,1000]]   | [11.0, 2000]           |
+| 0:01 | S                       | [[9.0,,400]...] | [[10.0,1000], ....]    |
+| 0:03 | U                       | [[10.1,900]]    | [[10.1,0],[10.2,140]]  |
 
 We wish to break down into a side, price, time format: as an example:
-| side  | price   | time           | qty 
-|    B  |  0.01   | 09:40:00.302   | 100
-|    B  |  0.01   | 09:40:03.532   | 200
-|    B  |  0.01   | 10:20:04:323   |   0
-|    B  |  0.02   | ....
-| ...  ... ....
-|    S  | 9999.99 | 23:29:59.999   |   0
+| side  | price   | time           | qty | 
+| ----  | ------- | -------------- | --- |
+|    B  |  0.01   | 09:40:00.302   | 100 |
+|    B  |  0.01   | 09:40:03.532   | 200 |
+|    B  |  0.01   | 10:20:04:323   |   0 |
+|    B  |  0.02   | ...            | ... |
+| ...   |  ...    | ...            | ... |
+|    S  | 9999.99 | 23:29:59.999   |   0 |
 
 This format separates all price levels into individual records and notes each change individually.  This is used for
  more performant orderbook depth algorithms.
 
-### Project components:
-  1. Python source files (pyrus_kaiko/pyrus_kaiko directoriy.  Includes
-    -- __init__.py: main script file, tests to ensure that both Rust functions and internal script modules are loaded.
-  2.
+## Project components:
+1. Python source files (pyrus_kaiko/pyrus_kaiko directoriy.  Includes
+ - ```__init__.py```: main script file, tests to ensure that both Rust functions and internal script modules are loaded.
+ - ```kaiko.py```: Main code
+
+2. src: Rust code files
 
 
 A "lib.rs" file, located in src directory, is the Rust file that will be compiled to start this library.
