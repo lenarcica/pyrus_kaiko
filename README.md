@@ -44,10 +44,10 @@ We wish to break down into a side, price, time format: as an example:
 This format separates all price levels into individual records and notes each change individually.  This is used for
  more performant orderbook depth algorithms.
 
-## Project components:
-1. Python source files (pyrus_kaiko/pyrus_kaiko directoriy.  Includes
+## Python Modules (source files in ```pyrus_kaiko/pyrus_kaiko``` directory)
  - ```__init__.py```: main script file, tests to ensure that both Rust functions and internal script modules are loaded.
- - ```kaiko.py```: Main code
+ - ```kaiko.py```: Main code for interacting with Kaiko FOB files or saving to a FOB format file
+ - ```ob.py``` : Faking orderbooks
 
 2. src: Rust code files
 
@@ -85,16 +85,28 @@ Appears to build the tool.  Note that access to CARGO and many pyo3 and arrow re
   Configure a ".cargo/config.toml" file where you will create a separate compilation location so that the downloaded cargo packages and the 
 compiled code does not interfere with normal cloud syncronization.  
 
-# Package contents
-  - src: RUST source code
-    a. lib.rs: Primary Matruin access code, demonstrating Arrow Parquet and other interaction formats between Rust/Python
-      External Facing functions:
-       kaiko_fob[]: main function called to extract a GZ zipped FOB file and return ARROW format table to python for further processing.
-       kaiko_make_u_fob[]: Take simulated orderbook data and create a fake GZ zipped FOB file
-       asjoin_py[]: simple demonstration of As_of_join in rust for pre-sorted columns of timestamp data
-       unsorted_asjoin_py[]: Harder dmeonstration for pre-unsorted data
-       pyrus_verify_prices[]: Used in simulating fake orderbook data to guarantee that simulations are "clipped" when they are hit by midpoint.
-       sip_arrow[]: SIP NBBO from separate BBO streat demonstration
-    b. sip_algo.rs/sip_struct.rs: Demonstration of a basic NBBO calculation on SIP format NBBO data (such as Kaiko TOB files that would need to be integrated)
-    c. b2v_struct.rs:  Bit-based structures for keeping tabs on each Exchange's ability to keep at top of book (see sip_algo.rs material)
-    c. verify_price.rs algo: Main algorithm for "clipping" simulated orders against the simulated midprice to create a large set of simulated orderbook data
+# Package contents:
+
+## Python modules: ```pyrus_kaiko/pyrus_kaiko/*.py```` 
+ - ```__init__.py```: main script file, tests to ensure that both Rust functions and internal script modules are loaded.
+ - ```kaiko.py```: Main code for interacting with Kaiko FOB files or saving to a FOB format file
+ - ```ob.py``` : Faking orderbooks
+
+## src: Directory with Rust language source code
+### a. ```lib.rs```: Primary ```pyo3``` interface between Rust and python code, demonstrating Arrow Parquet and other interaction formats between Rust/Python
+### External Facing functions:
+ - ```kaiko_fob[]```: main function called to extract a GZ zipped FOB file and return ARROW format table to python for further processing.
+
+ - ```kaiko_make_u_fob[]```: Take simulated orderbook data and create a fake GZ zipped FOB file
+
+ - ```asjoin_py[]```: simple demonstration of As_of_join in rust for pre-sorted columns of timestamp data
+
+ - ```unsorted_asjoin_py[]```: Harder dmeonstration for pre-unsorted data
+
+ - ```pyrus_verify_prices[]```: Used in simulating fake orderbook data to guarantee that simulations are "clipped" when they are hit by midpoint.
+
+ - ```sip_arrow[]```: SIP NBBO from separate BBO streat demonstration
+
+### b. ```sip_algo.rs/sip_struct.rs```: Demonstration of a basic NBBO calculation on SIP format NBBO data (such as Kaiko TOB files that would need to be integrated)
+### c. ```b2v_struct.rs```:  Bit-based structures for keeping tabs on each Exchange's ability to keep at top of book (see sip_algo.rs material)
+### c. ```verify_price.rs algo```: Main algorithm for "clipping" simulated orders against the simulated midprice to create a large set of simulated oIrderbook data
