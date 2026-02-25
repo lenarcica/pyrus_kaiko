@@ -1,3 +1,5 @@
+
+#![allow(unused_imports)] 
 ///~///////////////////////////////////////
 /// fill_unfilled_seq.rs
 ///
@@ -11,7 +13,6 @@
 ///  "eval_bound" and "get_dtype_bound" traits, but these traits seem to be have renamed and
 ///  redefined for more recent versions of the nump6 package.
 ///
-#![allow(unused_imports)] 
 
 use pyo3::{Python, Bound, types::{IntoPyDict, PyAnyMethods, PyDict}};
 use numpy::{Element};
