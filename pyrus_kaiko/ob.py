@@ -24,6 +24,7 @@ from pyrus_kaiko import pyrus_kaiko;
 asjoin_py = pyrus_kaiko.asjoin_py;
 limit_hit = pyrus_kaiko.limit_hit;
 cumulate = pyrus_kaiko.cumulate;
+unsorted_asjoin_py = pyrus_kaiko.unsorted_asjoin_py;
 
 def TimeGeneration(stTime: str, nMidPoints: int | np.int64,  \
     deltaSec: float | np.float64) -> (npTimeStamp, npTimeStamp, npTimeStampArray):
