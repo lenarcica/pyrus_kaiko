@@ -1171,7 +1171,7 @@ pub fn parallel_verify_sell(out_v: &mut Vec<u64>, st_v: &Vec<usize>, pdiff:f64, 
   let n_n64:u64 = n_n as u64; //match u64::try_from(n_n) { Ok(val)=>val,Err(_e)=>0 };
   //let n_nm1:usize = um1![n_n]; 
   let n_b_v:usize = find_1(st_v, v_s);
-  if n_v - n_b_v <= 0 { return(0); }
+  if n_v - n_b_v <= 0 { return 0; }
   let vstr = format!("parallel_verify_sell({},n_v={},n_n={},t_t={})",pdiff, n_v, n_n, if timetouch==false {0} else {1});
   if verbose >= 1 { println!("{} -- We begin.", vstr); }
   if n_n <= 0 {

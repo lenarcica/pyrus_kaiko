@@ -24,6 +24,10 @@ use verify_levs::{verify_buy, verify_sell, slow_verify_price, sort_v_pt, paralle
 mod b2v_struct;
 mod sip_struct;
 mod sip_algo;
+
+//mod cheats;
+mod fill_unfilled_seq;
+mod cumulate;
 // Verifying Levels is helpful when an exchange reporting to Kaiko has it's full order book feed
 // depart from its trade or top-of-book feed.
 
@@ -52,6 +56,7 @@ use pyo3_arrow::PyTable as arrowPyTable;
 use arrow::datatypes::Field;
 use arrow::datatypes::Schema;
 use arrow::error::ArrowError;
+use arrow::array::ArrayRef;
 use arrow::record_batch::{RecordBatch};
 use arrow_schema::SchemaRef;
 use arrow::array::ArrayData;
@@ -62,6 +67,8 @@ use arrow::array::{StringArray, Decimal64Array, Int8Array, UInt8Array, UInt64Arr
 use arrow::array::{Int32Array, Int16Array, Float64Array, BinaryArray,TimestampNanosecondArray};
 use arrow::datatypes::{DataType, TimeUnit};
 
+//use crate::cheats::recordbatch_to_pyarrow;
+use crate::cumulate::{cumulation_algo};
 //use crate::hpsort::idx_sort_trio;
 //use arrow_array::{Decimal64Array, Array};
 //use crate::cheats::recordbatch_to_pyarrow;
@@ -165,6 +172,36 @@ fn get_n_prices_per_line(fs: String) -> (u32, u8,u8) {
   }
   return (n_line, p_scale as u8, q_scale as u8);
 }
+///~////////////////////////////////////////////////////////////////////////
+///  A "null table"
+///
+///  If no data we will return this basic empty table. 
+///  Of course, depending on user inputs, we might need to create a more complicated
+///  table with arbitrary number of columns, so this is only a preliminary null
+pub fn null_table(null_code: u8, verbose: i8) -> RecordBatch {
+  if verbose >= 1 {
+    println!("-- pyrus_kaiko: we are returning a null table. null_code = {}", null_code);
+  }
+  //let field_time = Field::new("time", DataType::Int64, false);
+  //let vs: Vec<Field> = Vec<Field>::new();
+  //vs.push(field_time);
+  let mut vs = Vec::<Field>::new();
+  vs.push(Field::new("time",DataType::Int64,false));
+  let mut va = Vec::<ArrayRef>::new();
+
+  va.push(Arc::new(Int64Array::from(vec![0 as i64;0 as usize])));
+  vs.push(Field::new("best_bid", DataType::Float64, false));
+  vs.push(Field::new("best_ask", DataType::Float64, false));
+  va.push(Arc::new(Float64Array::from(vec![0 as f64; 0 as usize])) );
+  va.push(Arc::new(Float64Array::from(vec![0 as f64; 0 as usize])) );
+  if verbose >= 1 {
+    println!("pyrus_kaiko.rs->null_table() we are now at va={}, vs={}", va.len(), vs.len());
+  }
+  let schema = Schema::new(vs); 
+  let batch = RecordBatch::try_new(Arc::new(schema), va).unwrap();
+  return batch;
+}
+
 
 
 #[pymodule]
@@ -860,7 +897,194 @@ fn test_pa_py<'py>(_py:Python<'py>, intable: arrowPyTable) {
    //let int8_schemaref:SchemaRef = Arc::new(int8_schema);
    Ok(arrowPyArray::new(Arc::new(uint64_array), Arc::new(uint64_field)).to_arro3(py)?.into())
  }
+  /// limit_hit()
+  ///
+  ///  Old function using in simulating fake data, some of which might
+  ///    violate intended NBBO prices.
+  ///
+  ///  This helper function is used in generating fake orderbook data.
+  ///  Given price sequences for a "midpoint" in v_mt, vmp,
+  ///  And given proposed orders located at price v_p with on/off time t0/t1
+  ///  We detect if they are intercepted by the midpoint price (or
+  ///   alternatively, reach a point so far away from midpoint that they
+  ///   should be cancelled.
+  ///  This is not an optimal algorithm, but the 100x speed and improved
+  ///   stability compared to Python (We found Python's code wasn't very successful)
+  ///
+  ///  Note the verify_price algorithm demonstrates higher performance,
+  ///    a simpler interface (uses pyarrow tables as input) and implements
+  ///    parallelism.  That said, it requires much more space (even for data extraction)
+  ///    and algorithm implemented in separate verify_price.rs module
+  ///
+  ///  Another issue below, is that due to our requirement of using a Bound<'py,PyArray1<i64>> as
+  ///    output, we are using an unsafe scope rust command to add the result to the out_array0
+  ///    element.  At this point the algo is less useful, though it demonstrates some challenges
+  ///    to using the PyArray1::<i64>::zeros_bound interface.
+  ///
+  #[pyfn(m)]
+  #[pyo3(name = "limit_hit")]
+  fn limit_hit<'py>(py:Python<'py>, t0: PyReadonlyArrayDyn<'py,i64>,
+    t1: PyReadonlyArrayDyn<'py,i64>, v_s: PyReadonlyArrayDyn<'py,i8>,
+    v_p: PyReadonlyArrayDyn<'py,f64>, v_b: PyReadonlyArrayDyn<'py,f64>,
+    v_c: PyReadonlyArrayDyn<'py,f64>,
+    v_mt: PyReadonlyArrayDyn<'py,i64>, v_mp: PyReadonlyArrayDyn<'py,f64>,
+    verbose: i8
+    )
+    -> Bound<'py, PyArray1<i64>> {
+    //-> Bound<'py, numpy::PyArray<i64, Dim<IxDynImpl>>> {
+    let t0 = t0.as_array();
+    let t1 = t1.as_array();
+    let v_s = v_s.as_array(); let v_p = v_p.as_array();
+    let v_b = v_b.as_array(); let v_c = v_c.as_array();
+    let v_mt = v_mt.as_array(); let v_mp = v_mp.as_array();
+    let n:u32 = t0.len().try_into().unwrap();
 
+    let n_mt = v_mt.len().try_into().unwrap();
+
+    let out_array0 = PyArray1::<i64>::zeros(py, [n as usize], false);
+    let mut on_mw:u32 = 0;
+    for on0 in 0..n {
+      let on0:usize = on0 as usize;
+      while (on_mw < n_mt-1) && (v_mt[on_mw as usize] < t0[on0]) { on_mw += 1; }
+      let mut add_j:u32 = 0;
+      unsafe { *(out_array0.data().wrapping_add(on0 as usize)) = t1[on0]; } 
+      while (on_mw + add_j < n_mt) && (v_mt[(on_mw + add_j) as usize] < t1[on0]) {
+        if v_s[on0] < 0 {
+           if (v_p[on0] - v_c[on0 as usize] >= v_mp[(on_mw + add_j) as usize]) ||
+              (v_p[on0] - v_b[on0 as usize] <= v_mp[(on_mw + add_j) as usize]) {
+              unsafe { *(out_array0.data().wrapping_add(on0 as usize)) = v_mt[(on_mw + add_j) as usize]; } 
+              add_j = n_mt; break;
+            }
+         } else {
+           if   (v_p[on0] + v_c[on0] <= v_mp[(on_mw + add_j) as usize]) ||
+                (v_p[on0] + v_b[on0] >= v_mp[(on_mw + add_j) as usize]) {
+                unsafe { *(out_array0.data().wrapping_add(on0 as usize)) = v_mt[(on_mw + add_j) as usize]; } 
+                add_j = n_mt; break;
+           } 
+         }
+        add_j += 1;
+      }
+      if (verbose >= 10) && (add_j + on_mw < n_mt) {
+        println!("limit_hit, I wonder what happened to our add_j score? = {}", add_j);
+      }
+    }
+    out_array0
+  }
+
+ ///~////////////////////////////////////////////////////////////////////////////////
+ ///  cumulate  :: Continuous order cumulation algo
+ /// 
+ ///  In a basic order series we will have independent orders
+ /// 
+ #[pyfn(m)]
+ #[pyo3(name = "cumulate")] 
+ pub fn pyrus_cumulate(py: Python, intable: arrowPyTable, verbose: i8) -> PyArrowResult<PyObject> {
+   //v_side: Vec<char>, v_price: Vec<f64>, v_ven: Vec<i64>,
+   //                    v_qty: Vec<TQ>, v_t0:Vec<TTime>, v_t1:Vec<TTime>, verbose: u8) -> RecordBatch {
+
+   if verbose >= 1 {
+     print!("pyrus_cumulate(v={}) -> Start()",
+       verbose); 
+   }
+   // Does Take work on a table? and how does it?
+   let (inner_vec_record_batch, inner_schema): (Vec<RecordBatch>, SchemaRef) = intable.into_inner();
+   // into_inner() clearly hard way to extract from table.
+   // The info is apparently only available in a SchemaRef which is hard to read.
+   // The "Vector" of Record Batch"
+   let inner_schema = inner_schema.clone();
+   if verbose >= 1 {
+     println!("pyrus_cumulate(v={}): inner_vec_record_batch has len() = {}, inner schema fields len={}.",
+       verbose, inner_vec_record_batch.len(), inner_schema.fields.len());
+   }
+   // Vector extraction from Arrow arrays appears hard.  We would rather be able to directly cast
+   // Finally, let's extract and clone one cloned record batch from the vec of record batch.
+   let inner_record_batch_0:RecordBatch= inner_vec_record_batch[0].clone();
+   println!("pyrus_cumulate(v={}): We took first element into inner_record_batch_0, with num_columns = {}.",
+     verbose, inner_record_batch_0.num_columns());
+   let nc = inner_record_batch_0.num_columns();
+   // Decision time, 5 columns and no more are only acceptable inputs.
+   if nc < 6 {
+     // Returning a Null Table of blank lines will be hard.
+     println!("pyrus_cumulate(v={}: Error, number of columns is supposed 6, got {}, must return null output.", 
+       verbose, nc);
+   
+    let pybatch:PyRecordBatch = PyRecordBatch::new(null_table(2, verbose.try_into().unwrap()));
+    return Ok(pybatch.to_pyarrow(py)?);
+    //return Ok(recordbatch_to_pyarrow(&null_table(2, verbose.try_into().unwrap()),py)?);
+   }
+
+   macro_rules!col_to_aref{
+     ( $our_tab:expr, $ii: expr, $a_type:ty, $v_type: ty, $str_ii: expr) => {
+        $our_tab.column($ii).as_any().downcast_ref::<$a_type>()
+           .ok_or_else(|| PyValueError::new_err(format!("Failed to extract column {} called {}",$ii, $str_ii)))?.values() as &[$v_type]
+     }
+   }
+   if verbose > 1 {
+    println!("pyrus_cumulate(v={}) working first on the 0th element, hopefully binary array", verbose);
+   }
+
+   let vin_01_price = col_to_aref!(inner_record_batch_0,1,Float64Array, f64,"price");
+
+   let mut v_side:Vec<i8> = vec![-1 as i8; vin_01_price.len() as usize];
+   match inner_schema.fields().get(0).expect("We confirmed this is cumulat inner schema table is length 3+").data_type() {
+     DataType::Binary => {
+       let vin_00_side = inner_record_batch_0.column(0).clone();
+       let vin_00_side = vin_00_side.as_any().downcast_ref::<BinaryArray>().unwrap();
+       for ii in 0..vin_00_side.len() {
+         let v_on_char: char =  vin_00_side.value(ii)[0].try_into().unwrap();
+         v_side[ii] = if (v_on_char == 'B') || (v_on_char == 'b') || (v_on_char == 'B') || (v_on_char == 'b') { 0
+                      } else if (v_on_char == 'S') || (v_on_char == 's') { 1 } else { -1 };  
+       }
+     },
+     DataType::Int8 => {
+       let vin_00_side = inner_record_batch_0.column(0).clone();
+       let vin_00_side = vin_00_side.as_any().downcast_ref::<Int8Array>().unwrap().values();
+       for ii in 0..vin_00_side.len() {
+         let v_on_i8:i8 =  vin_00_side[ii];
+         v_side[ii] = v_on_i8;
+       }
+     },
+     _ => {
+       let vin_00_side = inner_record_batch_0.column(0).clone();
+       let vin_00_side = vin_00_side.as_any().downcast_ref::<Int64Array>().unwrap().values();
+       for ii in 0..vin_00_side.len() {
+         let v_on_i8:i8 =  match i8::try_from(vin_00_side[ii]) { Ok(val)=>val, Err(_e)=>-1 };
+         v_side[ii] = v_on_i8;
+       }
+     }
+   }
+
+   if verbose > 1 {
+     println!("pyrus_cumulate( working on price vector now. v_side length={}", v_side.len());
+   }
+   let vin_02_ven = col_to_aref!(inner_record_batch_0, 2, Int64Array, i64, "ven");
+   let vin_03_qty = col_to_aref!(inner_record_batch_0, 3,Float64Array, f64, "qty");
+   if verbose > 1 {
+     println!("pyrus_cumulate() finally moving to time fields.");
+   }
+   let vin_04_t0:&[i64] = match inner_schema.fields().get(4).expect("We confirmed this cumulate table is length 5+").data_type()
+      {
+       DataType::Timestamp(TimeUnit::Nanosecond,_) => col_to_aref!(inner_record_batch_0,4,TimestampNanosecondArray,i64,"t0"),
+       _  => col_to_aref!(inner_record_batch_0, 4, Int64Array, i64, "t0") 
+   };
+
+   let vin_05_t1:&[i64] = match inner_schema.fields().get(5).expect("We confirmed this cumulate table is length 5+").data_type()
+      {
+       DataType::Timestamp(TimeUnit::Nanosecond,_) =>  col_to_aref!(inner_record_batch_0,5,TimestampNanosecondArray, i64, "t1"),
+       _  => col_to_aref!(inner_record_batch_0, 5, Int64Array, i64, "t1") 
+   };
+
+   if verbose > 1 {
+     println!("pyrus_cuumulate, v_side len={}, vin_01_price len={}, vin_03_Qty len={}",
+       v_side.len(), vin_01_price.len(), vin_03_qty.len());
+   }
+   let rb:RecordBatch = cumulation_algo(&v_side[..], vin_01_price, vin_02_ven,
+     vin_03_qty, vin_04_t0, vin_05_t1, verbose.try_into().unwrap());
+
+   // We cheat implemented a version to convert recordbatchres to pyarrow.
+   return Ok(PyRecordBatch::new(rb).to_pyarrow(py)?);
+   //return Ok(recordbatch_to_pyarrow(&rb, py)?); 
+}
 /*****************************
  // Note we need to copy in a few more functions to get this one to work.
   ///~///////////////////////////////////////////////////////////
