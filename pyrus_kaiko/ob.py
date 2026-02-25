@@ -16,8 +16,14 @@ Default_Fake_OB = """
 nMidPoints=5000;nGen=4000;nVen=20;verbose = 1;
 stTime = '2024-10-03 10:30:32'; deltaSec= 1.53; startMid = 100;
 dTas = 4; sd_Midpoint=4; spread_Orders=50; AddMidPrice=True; v_bhit = False; fast_check="FASTCHECK";
-from pyrus_marketbook import pyrus_marketbook; 
+from pyrus_kaiko import pyrus_kaiko;
 """
+
+from pyrus_kaiko import pyrus_kaiko;
+
+asjoin_py = pyrus_kaiko.asjoin_py;
+limit_hit = pyrus_kaiko.limit_hit;
+cumulate = pyrus_kaiko.cumulate;
 
 def TimeGeneration(stTime: str, nMidPoints: int | np.int64,  \
     deltaSec: float | np.float64) -> (npTimeStamp, npTimeStamp, npTimeStampArray):
@@ -80,7 +86,7 @@ def Fake_OB(nGen:int, nMidPoints:int=5000,nVen:int=10,verbose:VerbosityLevel = 0
   import pandas as pd; import numpy as np; import copy;
   from pyrus_kaiko.ob import BasicSimulateMidPrice, TimeGeneration;
   from pyrus_kaiko.ob import asjoin_py, unsorted_asjoin_py;
-  #from pyrus_marketbook.ob import * asjoin_py
+  #from pyrus_kaiko.ob import * asjoin_py
   StT = "Fake_OB(Vb=" + str(verbose) + ",nG=" + str(nGen) + "): ";
   if verbose >= 1 :
     print(StT + " -- Begin");
@@ -100,7 +106,7 @@ def Fake_OB(nGen:int, nMidPoints:int=5000,nVen:int=10,verbose:VerbosityLevel = 0
   # venue/participant indicator
   v_ven = np.random.choice(np.arange(nVen), size=nMake).astype(np.int64);
   # Midpoint price as of order simulated arrival time: (gained by as_of_join)
-  n_mid_t =  pyrus_marketbook.asjoin_py(v_t0.astype(np.int64),vTime.astype(np.int64))
+  n_mid_t =  pyrus_kaiko.asjoin_py(v_t0.astype(np.int64),vTime.astype(np.int64))
   mid_of_v = MidPrice[n_mid_t];                               ## v_s vector of our data
   if verbose >= 1 :
     print(StT + " -- Fake_OB Generated mid_of_v, now makign add points"); 
@@ -122,7 +128,7 @@ def Fake_OB(nGen:int, nMidPoints:int=5000,nVen:int=10,verbose:VerbosityLevel = 0
   survival_time = np.random.uniform(np.min(vTime).astype(np.int64), np.max(vTime).astype(np.int64), size = nMake).astype('datetime64[ns]') - np.min(vTime);
   v_t1 = v_t0 + survival_time.astype('timedelta64[ns]'); v_t1[v_t1 > vTmax] = vTmax; ## Everything out of window just ends at widnow end
   v_t1c = copy.copy(v_t1);  # keep copy of original simulation time
-  market_price_v_t1c = MidPrice[unsorted_asjoin_py(v_t1c.astype(np.int64), vTime.astype(np.int64))]
+  market_price_v_t1c = MidPrice[pyrus_kaiko.unsorted_asjoin_py(v_t1c.astype(np.int64), vTime.astype(np.int64))]
   ## Forcing numpy to type a variable at i8 can sometimes be a challenge
   ilhverbose = np.array([verbose - 3]).astype(np.int8)[0]
   if verbose >= 1 :
@@ -142,13 +148,13 @@ def Fake_OB(nGen:int, nMidPoints:int=5000,nVen:int=10,verbose:VerbosityLevel = 0
     if verbose >= 1 :
       print(StT + " -- Trying to create minimum usage times using pyrus_verify_prices algorithms.");
     ## Verfiy a hit of v_p + v_s*v_b
-    v_t1_b = pyrus_marketbook.pyrus_verify_prices(pdiff, pa.Table.from_pandas(tabOrd), pa.Table.from_pandas(nbboBig),
+    v_t1_b = pyrus_kaiko.pyrus_verify_prices(pdiff, pa.Table.from_pandas(tabOrd), pa.Table.from_pandas(nbboBig),
                     False, False, ilhverbose,
                     DoFast, False).to_numpy();
     tabOrd['price'] = v_p + v_s * v_c;  ## Note v_c is a point far away (on opposite side of NBBO) from v_p where we give up order
     tabOrd['bs'] = np.asarray(['s' if x == 1 else 'b' for x in v_s], dtype='S1');
     ## Verify a walk away up to v_p + v_s * v_c;
-    v_t1_c = pyrus_marketbook.pyrus_verify_prices(pdiff, pa.Table.from_pandas(tabOrd), pa.Table.from_pandas(nbboBig),
+    v_t1_c = pyrus_kaiko.pyrus_verify_prices(pdiff, pa.Table.from_pandas(tabOrd), pa.Table.from_pandas(nbboBig),
                     False, False, 0,
                     DoFast, False).to_numpy();
     ## Admittedly we are still in trouble since it is hard to merge data when null matches exist.
@@ -158,7 +164,7 @@ def Fake_OB(nGen:int, nMidPoints:int=5000,nVen:int=10,verbose:VerbosityLevel = 0
     v_t1o_Both[v_t1_both >= len(vTime)] = pd.NaT;
     v_t1o = v_t1o_Both
   elif fast_check in SLOW_CHECKANSWERS :
-    v_t1o_Old = np.asarray(pyrus_marketbook.limit_hit(v_t0.astype(np.int64), v_t1c.astype(np.int64), 
+    v_t1o_Old = np.asarray(pyrus_kaiko.limit_hit(v_t0.astype(np.int64), v_t1c.astype(np.int64), 
       v_s.astype(np.int8), v_p.astype(np.float64), v_b.astype(np.float64), v_c.astype(np.float64), 
       vTime.astype(np.int64), MidPrice.astype(np.float64), ilhverbose)).astype('datetime64[ns]');
     v_t1o = v_t1o_Old
@@ -174,7 +180,7 @@ def Fake_OB(nGen:int, nMidPoints:int=5000,nVen:int=10,verbose:VerbosityLevel = 0
     ## Update the time to be a uniform somewhere between the initiation time v_t0 and the hit time v_t1o;
     v_t1[aHit == 1] = np.random.uniform(0,1.0,np.sum(aHit)) * (v_t1o[aHit==1]-v_t0[aHit==1]) + v_t0[aHit==1]
   ## New Midpoint price calculagted at unsorted_asjoin to v_t1
-  n_mid_t1 =  unsorted_asjoin_py(v_t1.astype(np.int64),vTime.astype(np.int64))
+  n_mid_t1 =  pyrus_kaiko.unsorted_asjoin_py(v_t1.astype(np.int64),vTime.astype(np.int64))
   mid_of_v1 = MidPrice[n_mid_t1];
   dictS = { 1:'b', -1:'s' }
   order_DB = pd.DataFrame({
@@ -216,9 +222,10 @@ def Fake_OB(nGen:int, nMidPoints:int=5000,nVen:int=10,verbose:VerbosityLevel = 0
 def fake_for_algo(nMidPoints=2000,nGen=1000,nVen=20,verbose = 1,
   stTime = '2024-10-03 10:30:32', deltaSec= 1.53, startMid = 100,
   dTas = 4, AddMidPrice=False, OnlyHit=False, v_bhit = False, fast_check:str = "FASTCHECK") :
-  from pyrus_marketbook import pyrus_marketbook;
+  #from pyrus_marketbook import pyrus_marketbook;
+  from pyrus_kaiko import pyrus_kaiko;
   import numpy as np; import pandas as pd;
-  from pyrus_marketbook import ob;
+  from pyrus_kaiko import ob;
   #
   if AddMidPrice == True :
     a_Fake_OB, MidTable = ob.Fake_OB(nGen=nGen, nVen=nVen,verbose = 1, 
@@ -240,7 +247,7 @@ def fake_for_algo(nMidPoints=2000,nGen=1000,nVen=20,verbose = 1,
     tab_a = pa.Table.from_pandas(a_Fake_OB[a_Fake_OB['hit'] == 0])
   else :
     tab_a = pa.Table.from_pandas(a_Fake_OB)
-  out_t = pa.Table.from_batches([pyrus_marketbook.cumulate(tab_a,0)]).to_pandas();
+  out_t = pa.Table.from_batches([pyrus_kaiko.cumulate(tab_a,0)]).to_pandas();
   #
   nr = len(np.unique(out_t.related_id));
   v_d = np.asarray([1,2,5, 20]).astype(np.int64);
