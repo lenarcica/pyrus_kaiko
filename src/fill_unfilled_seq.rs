@@ -1,3 +1,16 @@
+///~///////////////////////////////////////
+/// fill_unfilled_seq.rs
+///
+/// Alan Lenarcic 2025
+///
+/// License: GPL_v2:keep it open sourced, or better yet, rewrite this or solve it a different way.
+/// (probably skipping some of the numpy packages might be good advice)
+///
+/// Mostly tedious helper functions related to created Numpy RecArrays that support a Timestamp type.
+/// Ideally as libraries improve there will be less work, but previously this code relied upon
+///  "eval_bound" and "get_dtype_bound" traits, but these traits seem to be have renamed and
+///  redefined for more recent versions of the nump6 package.
+///
 #![allow(unused_imports)] 
 
 use pyo3::{Python, Bound, types::{IntoPyDict, PyAnyMethods, PyDict}};
