@@ -8,20 +8,20 @@
 
 
 # LICENSE:  GNU General Public License, version 2
-  -- The following code is a prototype and demonstration of Rust and python capabilities with simulated data.
+- The following code is a prototype and demonstration of Rust and python capabilities with simulated data.
 For use in commercial products, others are recommended to rewrite for your own purposes.
 
 ## Package features:
-  1. Simulate Continuous Orderbook according to a stochasitic midpoint + clipped simulated order process
-  2. Read typicla format Kaiko FOB files
-  3. Use the code for futher analyses such as in nbbo calculations.
+1. Simulate Continuous Orderbook according to a stochastic-midpoint & clipped-simulation order process
+2. Read typical format Kaiko FOB files into a tabular format
+3. Use the code for futher analyses such as in nbbo calculations (such as a cumulator if needed)
 
 ## Testing Python/Pyo3/Rust ability to unzip Kaiko Gzip files
 ### A supplemental file reader in RUST.
    Here we simulate gzip files and demonstrate Kaiko has features that can read these files.
    
    Due to the "grouped update" format of FOB files, this text reader algorithm will read the output of a FOB
-  file and split into all price/time/side categories to be tracked separately.
+file and split into all price/time/side categories to be tracked separately.
 
 
 #  KAIKO "fob" files (Full-Order-Book)
