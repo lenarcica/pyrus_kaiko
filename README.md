@@ -1,8 +1,10 @@
 ## pyrus_kaiko
 ##
-## A collection of utilities for ssimulating or reading from Kaiko-style continuous time orderbook
+## A collection of utilities for simulating or reading from Kaiko-style continuous time orderbook
 ##
 ##  Alan Lenarcic, 2025/10
+
+## Recent version 2026/02/25, eliminating dependencies on "pyrus_marketbook" package and older numpy/arrow versions
 
 
 # LICENSE:  GNU General Public License, version 2
