@@ -33,7 +33,7 @@ exist in a strange format
 | 0:01 | S                       | [[9.0,,400]...] | [[10.0,1000], ....]    |
 | 0:03 | U                       | [[10.1,900]]    | [[10.1,0],[10.2,140]]  |
 
-We wish to break down into a side, price, time format: as an example:
+We wish to break down into a side, price, time format, compatible for algorithms and image plots: as an example:
 | side  | price   | time           | qty | 
 | ----  | ------- | -------------- | --- |
 |    B  |  0.01   | 09:40:00.302   | 100 |
@@ -60,10 +60,10 @@ A "lib.rs" file, located in src directory, is the Rust file that will be compile
    
   Installation of Rust is achieved using Anaconda python environment, python 3.12 or sooner, which would include Rust and pyo3 related packages.
 
-  In windows, llvm must be installed Visual Studio tools.
+  In windows, llvm must be installed using Visual Studio tools.
  
 ### Compiling this package: 
-To install package install pyo3, pyo3 tools, and "maturin" from Python PIP
+To install package install pyo3, pyo3 tools, and "maturin" from Python PIP, also you will need "arro3-core" and "arro3-io" if using anaconda.
 ```
 
 ```
