@@ -116,3 +116,5 @@ compiled code does not interfere with normal cloud syncronization.
   Bit-based structures for keeping tabs on each Exchange's ability to keep at top of book (see sip_algo.rs material)
 ### c. ```verify_price.rs algo```: 
  Main algorithm for "clipping" simulated orders against the simulated midprice to create a large set of simulated oIrderbook data
+### d. ```cumulate.rs```
+ Algoirithms for aggregating sides efficiently.  This way a Side\Price\Time array can be configured.
