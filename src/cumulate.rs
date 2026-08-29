@@ -160,7 +160,7 @@ pub fn idx_sort_trio(v_s: &[i8], v_p: &[f64], v_v: &[i64], v_t:&[i64]) -> Vec<us
     out_ix[i] = rra_ix;
     nloop = nloop + 1;
     if nloop > n*n {
-      println!("-- Forced to break from Loop on nLoop = {}, n={}, possibly algo fail",
+      println!("-- Forced to break from Loop on n_loop = {}, n={}, possibly algo fail",
         nloop, n);
       break;
     }
@@ -709,32 +709,32 @@ pub fn concatenate_cds(bs:TBS, l_cds:&[InputSideStruct], u_p:Vec<TP>) -> Result<
     return Err(String::from("HEY, concatenate_cds, we do not permit more than u8 simulataneous Related parties!"));
   }
   let nl:usize = l_cds.len();
-  let mut idxL: Vec<usize> = vec![0;nl];
-  let mut nL: Vec<usize> = vec![0,nl]; let mut nn = 0;
+  let mut idxl: Vec<usize> = vec![0;nl];
+  let mut n_l: Vec<usize> = vec![0,nl]; let mut nn = 0;
   let mut mxt: TTime = l_cds[0].vt[l_cds[0].vt.len().saturating_sub(1)];
   for ii in 0..nl {
-    nL[ii] = l_cds[ii].vpi.len(); nn += nL[ii];
-    if nL[ii] > 0 { if mxt < l_cds[ii].vt[ nL[ii].saturating_sub(1)] { mxt = l_cds[ii].vt[nL[ii].saturating_sub(1)] } }
+    n_l[ii] = l_cds[ii].vpi.len(); nn += n_l[ii];
+    if n_l[ii] > 0 { if mxt < l_cds[ii].vt[ n_l[ii].saturating_sub(1)] { mxt = l_cds[ii].vt[n_l[ii].saturating_sub(1)] } }
   }
-  let mxt = mxt;  let mxtB = mxt.checked_add(1).expect("concatenate_cds: we wanted to add 1 to mxt");
+  let mxt = mxt;  let mxt_b = mxt.checked_add(1).expect("concatenate_cds: we wanted to add 1 to mxt");
   let nn = nn;
   let mut o_vpi = vec![0 as TPi;nn]; let mut o_vq = vec![0 as TQ; nn]; let mut o_vt = vec![0 as TTime;nn];
   let mut o_vr = vec![0 as TNRi;nn];
   let nr = l_cds.len() -1; let nru8:u8 = nr.try_into().expect("How could nr not become u8!");
   for ii in 0..nn {
     let mut on_r = 0; 
-    let mut on_t = if nL[0] >= idxL[0] { l_cds[0].vt[idxL[0]] } else { mxtB };
+    let mut on_t = if n_l[0] >= idxl[0] { l_cds[0].vt[idxl[0]] } else { mxt_b };
     for ir in 1..nr { 
-      if (idxL[ir] < nL[ir]) && (l_cds[ir].vt[idxL[ir]] < on_t) {  on_r = ir;  on_t = l_cds[ir].vt[idxL[ir]]; }
+      if (idxl[ir] < n_l[ir]) && (l_cds[ir].vt[idxl[ir]] < on_t) {  on_r = ir;  on_t = l_cds[ir].vt[idxl[ir]]; }
     }
     o_vt[ii] = on_t; 
-    if idxL[on_r] >= nL[on_r] { 
-      return Err(String::from(format!["concatenate_cds: idxL[on_r={}] = {}  but length is {}.", on_r, idxL[on_r], nL[on_r]]));
+    if idxl[on_r] >= n_l[on_r] { 
+      return Err(String::from(format!["concatenate_cds: idxl[on_r={}] = {}  but length is {}.", on_r, idxl[on_r], n_l[on_r]]));
     }
-    o_vq[ii] = l_cds[on_r].vq[idxL[on_r]]; 
-    o_vpi[ii] = l_cds[on_r].vpi[idxL[on_r]];
+    o_vq[ii] = l_cds[on_r].vq[idxl[on_r]]; 
+    o_vpi[ii] = l_cds[on_r].vpi[idxl[on_r]];
     o_vr[ii] = if on_r == 0 { nru8 } else  { on_r.saturating_sub(1).try_into().expect("How could on_r not subtract to u8!") };
-    idxL[on_r]+=1;
+    idxl[on_r]+=1;
   }
   Ok(InputSideStruct{bs:bs,u_p:u_p.clone(),vpi:o_vpi,vt:o_vt,vq:o_vq,vr:o_vr}) 
 }
