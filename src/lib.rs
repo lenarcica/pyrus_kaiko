@@ -43,7 +43,7 @@ use pyo3::Python;
 use pyo3::{pymodule, types::PyModule, PyObject, PyResult, Bound};
 
 //rust-numpy package: Grab Rust
-use numpy::ndarray::{ArrayD, ArrayViewD,ArrayViewMutD};
+//use numpy::ndarray::{ArrayD, ArrayViewD,ArrayViewMutD};
 use numpy::{IntoPyArray, PyArrayDyn, PyArray1, PyReadonlyArrayDyn, PyArrayMethods};
 
 

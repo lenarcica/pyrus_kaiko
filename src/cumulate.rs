@@ -1,12 +1,6 @@
 /// cumulate.rs
 ///   Cumulation Algorithm
-///
-///   Alan Lenarcic 2025
-///
-///   GPL_v2 licensed (you might be able to do similar accumulation with duckdb!)
-///
-///   Preperatory algorithm to Orderbook totalling implemented in Rust.  This solves the "need to
-///   quickly accumulate the order table" problem we face is assembling order plots.
+///   Preperatory to Orderbook totalling
 ///
 /// Typically if order messages arrive in tabular form
 ///
@@ -45,8 +39,6 @@
 
 //use std::mem;
 use crate::Arc;
-
-
 //use crate::ord_struct::{ TBS };
 use crate::fill_unfilled_seq::{ TTime };
 //use crate::fill_unfilled_seq::{TPrice, TTimePrice,  TSideS, TTmPrSd};
@@ -54,10 +46,25 @@ use arrow::record_batch::RecordBatch;
 //use cheats::RecordBatchToPyArrow; // If Traits don't help me I cheat
 // This will go to lib.rs probably.
 //use crate::cheats::recordbatch_to_pyarrow;
-//use crate::ord_struct::{TQ};
+//use crate::ord_struct::{TQ, TP, TBS, TPi, TNRi};
 pub type TQ = f64;
+pub type TP = f64;
+pub type TNRi = u8; pub type TPi = usize;
+use std::fmt;
+#[derive(PartialEq, Eq, Copy, Clone)]
+pub enum TBS {
+  B,S
+}
+impl fmt::Display for TBS {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    match self {
+      TBS::B => write!(f, "B"),
+      TBS::S => write!(f, "S"),
+    }
+  }
+}
 use arrow::array::{Int64Array, Float64Array, BinaryArray,TimestampNanosecondArray};
-use arrow::datatypes::{DataType, TimeUnit};
+//use arrow::datatypes::{DataType, TimeUnit};
 
 // Could not get "zerocopy" to import, so we hacked instead on "B"/"S" items
 // necessary to convert vec<char> to &[u8]?
@@ -387,7 +394,7 @@ pub fn cumulation_algo(v_b0s1: &[i8], v_price: &[f64], v_ven: &[i64],
   }
   macro_rules!next_t0_is_same {
      () => {
-     if i0 >= nn-1 { false 
+     if i0 >= nn-2 { false 
      } else if v_t0[s0[i0+1]] != on_t { false
      } else if v_ven[s0[i0+1]] != on_ven { false
      } else if v_price[s0[i0+1]] != on_p { false
@@ -396,7 +403,7 @@ pub fn cumulation_algo(v_b0s1: &[i8], v_price: &[f64], v_ven: &[i64],
   }}
   macro_rules!next_t1_is_same {
      () => {
-     if i1 >= nn-1 { false 
+     if i1 >= nn-2 { false 
      } else if v_t1[s1[i1+1]] != on_t {false 
      } else if v_ven[s1[i1+1]] != on_ven {false 
      } else if v_price[s1[i1+1]] != on_p {false 
@@ -575,3 +582,159 @@ pub fn cumulation_algo(v_b0s1: &[i8], v_price: &[f64], v_ven: &[i64],
    ]).unwrap();
   return batch;
 } 
+pub struct CData {
+  pub vt: Vec<TTime>,
+  pub vpi: Vec<TPi>,
+  pub vq: Vec<TQ>,
+  pub nn: usize
+}
+impl CData {
+  pub fn sort_tp(self: &mut Self) {
+    let nn = self.nn;
+    let mut idx = vec![0 as usize;nn];
+    for ii in 0..nn { idx[ii] = ii; }
+    idx.sort_by(|ai,bi| if self.vt[*ai]==self.vt[*bi] {self.vpi[*ai].cmp(&self.vpi[*bi])} else { self.vt[*ai].cmp(&self.vt[*bi]) } );
+    self.vpi = idx.iter().map(|&i| self.vpi[i]).collect();
+    self.vq = idx.iter().map(|&i| self.vq[i]).collect();
+    self.vt = idx.iter().map(|&i| self.vt[i]).collect();
+  }
+}
+pub struct InputSideStruct {
+  pub bs: TBS,
+  pub u_p: Vec<TP>,
+  pub vpi: Vec<TPi>,
+  pub vt:  Vec<TTime>,
+  pub vq:  Vec<TQ>,
+  pub vr:  Vec<TNRi>
+}
+impl InputSideStruct {
+  pub fn new(in_bs: TBS, in_u_p: Vec<TP>, in_vpi: Vec<TPi>, in_vt: Vec<TTime>, in_vq: Vec<TQ>) -> Self {
+    return InputSideStruct{bs:in_bs, u_p:in_u_p, vpi:in_vpi, vt: in_vt, vq: in_vq, vr:vec![0 as TNRi;0]};
+  }
+}
+pub struct InputStruct {
+  pub b: InputSideStruct, pub s: InputSideStruct
+}
+impl InputStruct {
+  pub fn new(oss_b:InputSideStruct, oss_s:InputSideStruct) -> Self{
+    return InputStruct{b:oss_b,s:oss_s};
+  }
+}
+pub fn idx_spt(vpi: &Vec<TPi>,vt: &Vec<TTime>) -> Option<Vec<usize>> {
+  if vpi.len() != vt.len() { return None; }
+  let nn: usize = vpi.len(); 
+  let mut idx = vec![0 as usize;nn];
+  for ii in 0..nn {  idx[ii] = ii; }
+  //|ai, bi| v_b0s1[ai].cmp(v_b0s1[bi])  
+  idx.sort_by(|ai,bi| if vpi[*ai]==vpi[*bi] { vt[*ai].cmp(&vt[*bi]) } else { vpi[*ai].cmp(&vpi[*bi]) } );
+  return Some(idx);
+}
+pub fn make_c_data(idx: Vec<usize>, vpi: &Vec<TPi>, vt: &Vec<TTime>, vq: &Vec<TQ>) -> Option<CData> {
+  let nn:usize = vpi.len();
+  if  (nn != vt.len()) || (nn != vq.len()) {
+    //Err(String::from(format!["make_c_data: Hey Error (idx={}, vpi={}, vt={}, vq={})",idx.len(),vpi.len(),vt.len(), vq.len()]));
+    return None;
+  }
+  let mut o_vpi:Vec<TPi> = vec![0 as TPi;nn];
+  let mut o_vt:Vec<TTime> = vec![0 as TTime;nn];
+  let mut o_vq:Vec<TQ> = vec![0 as TQ;nn];
+  for ii in 0..nn {
+    o_vpi[ii] = vpi[idx[ii]];
+    o_vt[ii] = vt[idx[ii]];
+    o_vq[ii] = vq[idx[ii]];
+  }
+  return Some(CData{vt:o_vt,vpi:o_vpi,vq:o_vq,nn:nn});
+} 
+pub fn cumulate_dside(bs: TBS, u_p: Vec<TP>, vo: Vec<TTime>,vc: Vec<TTime>,vq: Vec<TQ>,vpi: Vec<TPi>) -> Result<InputSideStruct,String> {
+  let nn = vo.len();
+  if (nn != vo.len()) || (nn != vc.len()) || (nn != vq.len()) || (nn != vpi.len()) {
+    return Err(String::from(format!["cumulate_dside, length (o={},c={},q={},pi={})=", vo.len(), vc.len(), vq.len(), vpi.len()]));
+  }
+  if nn == 0 {
+    //Size Zero table, I guess thats best we can do.  More useful than a None
+    return Ok(InputSideStruct{bs:bs,u_p:u_p.clone(), vpi:vec![0 as TPi;0],vt:vec![0 as TTime;0],vq:vec![0 as TQ;0],vr:vec![0 as TNRi;0]});
+  }
+  let idx_o:Vec<usize> = idx_spt(&vpi,&vo).expect("cumulate_dside, idx_spt(vo,t) should be even size, honestly already tested.");
+  let idx_c:Vec<usize> = idx_spt(&vpi,&vc).expect("cumulate_dside, idx_spt(vc,t) should be even size, honestly already tested.");
+  let c_data_c:CData = make_c_data(idx_o, &vpi, &vo, &vq).expect("cumulate_dside: make_c_data(idx_o,v_o,vt,vq) should have worked");
+  let c_data_o:CData = make_c_data(idx_c, &vpi, &vc, &vq).expect("cumulate_dside: make_c_data(idx_c,v_c,vt,vq) should have worked");
+
+  let mut ip:usize=0; let n2:usize = nn.checked_add(nn).expect("cumulate_dsize, nn so large that 2n larger than usize");
+  let mut i_o:usize=0; let mut i_c:usize=0; let mut on_q: TQ;
+  let mut o_vt:Vec<TTime> = vec![0 as TTime;n2]; let mut o_vq:Vec<TQ> = vec![0 as TQ;n2]; let mut o_vpi:Vec<TPi> = vec![0 as TPi;n2];
+  o_vt[ip] = c_data_o.vt[i_o]; o_vq[ip] = c_data_o.vq[i_o]; o_vpi[ip] = c_data_o.vpi[i_o]; on_q = o_vq[0]; ip = 1;
+  let mut on_pi:usize = o_vpi[0];
+  for ii in 1..n2 {
+    if (i_o >=nn) || (c_data_c.vpi[i_c] < c_data_o.vpi[i_o]) || (c_data_c.vt[i_c] < c_data_o.vt[i_o]) {
+       if on_q - c_data_c.vq[i_c] < (0 as TQ) {
+          return Err(String::from(format!["cumulate_dside, we have an on_q error on ii={}/{}, on_q={}, c_data_c.vq[{}]={}", ii,n2,on_q,i_c,c_data_c.vq[i_c]]));
+       }
+       o_vt[ip] = c_data_c.vt[i_c]; on_q -= c_data_c.vq[i_c];  i_c = i_c+1;
+    } else {
+       o_vt[ip] = c_data_o.vt[i_o];
+       if c_data_o.vpi[i_o] == on_pi {
+         on_q += c_data_o.vq[i_o];
+       } else {
+         on_q = c_data_o.vq[i_o]; on_pi = c_data_o.vpi[i_o];
+       }
+       i_o = i_o + 1;
+    }
+    let ipm1 = ip.saturating_sub(1);
+    o_vq[ip] = on_q;  o_vpi[ip] = on_pi;
+    if o_vt[ip] != o_vt[ipm1] {
+      if o_vpi[ip] == o_vpi[ipm1] && o_vq[ip] == o_vq[ipm1] {
+      } else {
+        ip += 1;
+      }
+    } else {
+      if o_vpi[ip] != o_vpi[ipm1] {
+        ip += 1;
+      }
+    }
+  }
+  o_vt.resize(ip,0 as TTime); o_vpi.resize(ip,0 as TPi); o_vq.resize(ip,0 as TQ);
+  Ok(InputSideStruct{bs:bs,u_p:u_p.clone(),vpi:o_vpi,vt:o_vt,vq:o_vq,vr:vec![0 as TNRi;0]})
+}
+
+pub fn concatenate_cds(bs:TBS, l_cds:&[InputSideStruct], u_p:Vec<TP>) -> Result<InputSideStruct,String>{
+  if l_cds[0].vt.len() == 0 {
+    println!("concatenaate_cds: the first Market InputSideStruct must be non zero in length!");
+    return Err(String::from("concatante_cds: Error, first element of l_cds is zero length."));
+  }
+  if l_cds.len() == 1 { 
+    return Ok(InputSideStruct{bs:l_cds[0].bs,u_p:u_p.clone(),vpi:l_cds[0].vpi.clone(),vt:l_cds[0].vt.clone(),vq:l_cds[0].vq.clone(),
+                         vr:vec![0 as TNRi;l_cds[0].vpi.len()]});
+  }
+  if l_cds.len() > 254 {
+    return Err(String::from("HEY, concatenate_cds, we do not permit more than u8 simulataneous Related parties!"));
+  }
+  let nl:usize = l_cds.len();
+  let mut idxL: Vec<usize> = vec![0;nl];
+  let mut nL: Vec<usize> = vec![0,nl]; let mut nn = 0;
+  let mut mxt: TTime = l_cds[0].vt[l_cds[0].vt.len().saturating_sub(1)];
+  for ii in 0..nl {
+    nL[ii] = l_cds[ii].vpi.len(); nn += nL[ii];
+    if nL[ii] > 0 { if mxt < l_cds[ii].vt[ nL[ii].saturating_sub(1)] { mxt = l_cds[ii].vt[nL[ii].saturating_sub(1)] } }
+  }
+  let mxt = mxt;  let mxtB = mxt.checked_add(1).expect("concatenate_cds: we wanted to add 1 to mxt");
+  let nn = nn;
+  let mut o_vpi = vec![0 as TPi;nn]; let mut o_vq = vec![0 as TQ; nn]; let mut o_vt = vec![0 as TTime;nn];
+  let mut o_vr = vec![0 as TNRi;nn];
+  let nr = l_cds.len() -1; let nru8:u8 = nr.try_into().expect("How could nr not become u8!");
+  for ii in 0..nn {
+    let mut on_r = 0; 
+    let mut on_t = if nL[0] >= idxL[0] { l_cds[0].vt[idxL[0]] } else { mxtB };
+    for ir in 1..nr { 
+      if (idxL[ir] < nL[ir]) && (l_cds[ir].vt[idxL[ir]] < on_t) {  on_r = ir;  on_t = l_cds[ir].vt[idxL[ir]]; }
+    }
+    o_vt[ii] = on_t; 
+    if idxL[on_r] >= nL[on_r] { 
+      return Err(String::from(format!["concatenate_cds: idxL[on_r={}] = {}  but length is {}.", on_r, idxL[on_r], nL[on_r]]));
+    }
+    o_vq[ii] = l_cds[on_r].vq[idxL[on_r]]; 
+    o_vpi[ii] = l_cds[on_r].vpi[idxL[on_r]];
+    o_vr[ii] = if on_r == 0 { nru8 } else  { on_r.saturating_sub(1).try_into().expect("How could on_r not subtract to u8!") };
+    idxL[on_r]+=1;
+  }
+  Ok(InputSideStruct{bs:bs,u_p:u_p.clone(),vpi:o_vpi,vt:o_vt,vq:o_vq,vr:o_vr}) 
+}

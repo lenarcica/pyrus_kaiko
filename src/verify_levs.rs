@@ -95,7 +95,7 @@ macro_rules!print_v {
 ///                         time
 ///
 ///
-///  In our algoirthm we caculate for a given price level the known crossing points of the target
+///  In our algoirthm we calculate for a given price level the known crossing points of the target
 ///  price P
 ///  We check these finite number of points against all resting orders resting at P.
 ///  Assuming the NBBOmid[t] "breaks" through we know the order is hit, also if it "rests" on the
@@ -305,6 +305,147 @@ fn resort_out_x(out_x: &Vec<usize>) -> Vec<usize> {
   return out_idx;
 }
 
+fn crit_take(ab01:u8,try_p:TP,ptgt:TP) -> bool {
+   return if ab01 == 0 { try_p <= ptgt } else { try_p >= ptgt };
+}
+
+///~///////////////////////////////////////////////////////////////
+/// fast_alter_cross 
+///   Cleaning algorithm up and using better designed prices
+fn fast_alter_cross(ab01:u8, ptgt:TP, st_n:&[usize],v_nop:&[TP],out_x:&mut Vec<usize>,ip_eq:&mut usize,ip_u:&mut usize) {
+  let n_n = st_n.len(); let mut write_i:usize = 0;
+  let n_nm1 = um1![n_n];
+  for on_i in 0_usize..out_x.len() {
+    let on_sti = out_x[on_i];
+    let on_p = v_nop[on_sti];
+    let prv_p = if on_sti > 0 { v_nop[um1![on_sti]] } else {
+                  if ab01==0 {
+                    if on_p >= ptgt { ptgt - 1.0 } else { on_p }
+                  } else {  
+                    if on_p <= ptgt { ptgt + 1.0 } else { on_p }
+                  }
+                };
+    let nxtp = if on_sti < n_nm1 { v_nop[on_sti+1] } else { on_p };
+    if (on_p == ptgt) ||
+       ((on_p > ptgt) && ((prv_p <= ptgt) || ((nxtp <= ptgt)))) ||
+       ((on_p < ptgt) && ((prv_p >= ptgt) || ((nxtp >= ptgt)))) {
+      out_x[write_i] = out_x[on_i]; write_i+=1;
+    } 
+  }
+  out_x.truncate(write_i);  // Eliminate everyone who is out of goal.
+  *ip_u = if ((*ip_eq)+1) < n_n { (*ip_eq)+1 } else { (*ip_eq) + 0 };
+  if ((ab01 == 0) && (v_nop[0] <= ptgt)) ||
+     ((ab01 == 1) && (v_nop[0] >= ptgt)) {
+     if !out_x.contains(&0) {
+       out_x.push(0);
+     }
+  }
+  while (*ip_u) <= n_nm1 && crit_take(ab01, v_nop[st_n[*ip_u]], ptgt) {
+     let on_sti = st_n[*ip_u];
+     let on_p = v_nop[on_sti];
+     let prv_sti = um1![on_sti];
+     let prv_p = if on_sti > 0 { v_nop[prv_sti] } else {
+                   if ab01==0 {
+                      if on_p >= ptgt { ptgt - 1.0 } else { on_p }
+                   } else {
+                      if on_p <= ptgt { ptgt + 1.0 } else { on_p }
+                   }
+                 }; 
+     let nxt_p = if on_sti + 1 < n_n { v_nop[on_sti+1] } else { on_p };
+     if ((prv_p <= ptgt) && (on_p >= ptgt)) ||
+        ((prv_p >= ptgt) && (on_p <= ptgt)) {
+       if !out_x.contains(&prv_sti) {
+         out_x.push(prv_sti);
+       }
+     }
+     if (on_p == ptgt) ||
+         ((on_p<ptgt) && (nxt_p>=ptgt)) ||
+         ((on_p>ptgt) && (nxt_p<=ptgt)) {
+       if !out_x.contains(&on_sti) {
+         out_x.push(on_sti);
+       }
+     } 
+  }
+}
+
+///~////////////////////////////////////////////////////////////////////
+///  "slow_calculate_cross_below"
+///   This is used to get crossing events absent any previous information.
+///   This is good for checking quality of the fast_alter_cross_below calculation
+///
+fn slow_calculate_cross(ab01: u8, ptgt: TP, st_n:&[usize], v_nop:&[TP], 
+  out_x:&mut Vec<usize>, 
+  ip_eq: &mut usize, ip_u: &mut usize) -> usize {
+  //let st_n = *st_n; let v_nop = *v_nop;
+  let n_n:usize  = st_n.len() as usize;
+  out_x.clear(); 
+  if ab01 == 0 {
+    while (*ip_eq < n_n) && (v_nop[st_n[(*ip_eq)+1]] < ptgt) {
+       (*ip_eq) = (*ip_eq) + 1;
+    }
+    // No potential cross found, ptgt is unobtainable.
+    if ((*ip_eq) == um1![n_n])  && (v_nop[st_n[ um1![n_n]]] < ptgt) {  
+      return 0;
+    }
+    (*ip_u) = *ip_eq;
+    while  (*ip_u < n_n) && (v_nop[st_n[(*ip_u)+1]] < ptgt) {
+      (*ip_u) = (*ip_u) + 1;
+    }
+  } else {
+    while (*ip_eq < n_n) && (v_nop[st_n[(*ip_eq)+1]] > ptgt) {
+       (*ip_eq) = (*ip_eq) + 1;
+    }
+    // No potential cross found, ptgt is unobtainable.
+    if ((*ip_eq) == um1![n_n])  && (v_nop[st_n[ um1![n_n]]] > ptgt) {  
+      return 0;
+    }
+    (*ip_u) = *ip_eq;
+    while  (*ip_u < n_n) && (v_nop[st_n[(*ip_u)+1]] > ptgt) {
+      (*ip_u) = (*ip_u) + 1;
+    }
+  }
+
+  if ab01 == 0 {
+  for on_i in 0..(*ip_u) {
+    let on_sti = st_n[on_i];
+    let prv_sti:usize = um1![on_sti]; 
+    let on_p =v_nop[on_sti];
+    let prv_p = if prv_sti > 0 { v_nop[prv_sti] } else {on_p};
+    let nxt_sti = on_sti+1;
+    let nxt_p = if nxt_sti < n_n { v_nop[nxt_sti] } else {on_p};
+    if prv_p >= ptgt {
+      if !out_x.contains(&prv_sti) {
+         out_x.push(prv_sti);
+      }
+    }
+    if nxt_p >= ptgt {
+      if !out_x.contains(&on_sti) {
+        out_x.push(on_sti);
+      }
+    }
+  }
+  } else {
+  for on_i in 0..(*ip_u) {
+    let on_sti = st_n[on_i];
+    let prv_sti:usize = um1![on_sti]; 
+    let on_p =v_nop[on_sti];
+    let prv_p = if prv_sti > 0 { v_nop[prv_sti] } else {on_p};
+    let nxt_sti = on_sti+1;
+    let nxt_p = if nxt_sti < n_n { v_nop[nxt_sti] } else {on_p};
+    if prv_p <= ptgt {
+      if !out_x.contains(&prv_sti) {
+         out_x.push(prv_sti);
+      }
+    }
+    if nxt_p <= ptgt {
+      if !out_x.contains(&on_sti) {
+        out_x.push(on_sti);
+      }
+    }
+  }
+  }
+  return out_x.len();
+}
 ///~//////////////////////////////////////////////////////////////////////
 /// "fast_alter_cross_below" is the "fast update" companion to slow_calculate_cross_below()
 ///
@@ -815,7 +956,7 @@ pub fn parallel_verify_buy(out_v:&mut Vec<u64>, st_v: &Vec<usize>,  pdiff:f64, v
     let mut chunks = final_out_v.chunks_exact_mut(chunk_size);
     for (p_i, chunk) in chunks.by_ref().enumerate() { 
       let start_i:usize = chunk_size * p_i;
-      let end_i: usize = chunk_size * (p_i+1);
+      //let end_i: usize = chunk_size * (p_i+1);
       let vstr_clone = vstr.clone();
       s.spawn(move || {
         let mut on_plev = v_p[st_v[start_i]] + pdiff;
